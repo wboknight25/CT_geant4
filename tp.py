@@ -12,8 +12,8 @@ import math
 import statsmodels.api as sm
 import copy
 
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
+# pd.set_option('display.max_rows', None)
 pd.set_option('precision', 12)
 
 EPSILON=1e-10
@@ -37,12 +37,12 @@ raw_data_path = Tem_raw_data_path + get_newest_path()
 # raw_data_path = Tem_raw_data_path + 'data20190327/'
 
 def get_newest_m5_path():
-    paths = np.array(os.listdir('/data/m5_rawdata/'))
+    paths = np.array(os.listdir('/pcie/m5_rawdata/'))
     paths = paths[[True if ele[:11] == 'm5_rawdata_' and len(ele) == 19 else False for ele in paths]]
     paths = np.array([int(ele[11:]) for ele in paths])
     return 'm5_rawdata_' + str(paths.max()) + '/'
 
-m5_dir_path = '/data/m5_rawdata/' + get_newest_m5_path()
+m5_dir_path = '/pcie/m5_rawdata/' + get_newest_m5_path()
 trade_price = pd.read_pickle(m5_dir_path + 'm5_adjc')
 m5_amnt = pd.read_pickle(m5_dir_path + 'm5_amnt')
 
@@ -60,7 +60,7 @@ industry_factor = ['PETROCHEMICAL','COAL','NONFERROUS','ELECPUB','STEEL','CHEMEN
             'ELECCOMP','COMMUNICATION','COMPUTER','MEDIUM','COMPREHENSIVE']
 
 factor_return = pd.read_pickle(risk_factor_path + 'DlyFctret.pkl')
-index_ret = pd.read_pickle(raw_data_path + 'index_ret')
+index_ret = pd.read_pickle('/pcie/delay0/wei/index_ret')
 C_price = pd.read_pickle(raw_data_path + 'C_price')
 amount = pd.read_pickle(raw_data_path + 'amount')
 #O_price_m5_all = pd.read_pickle(m5_dir_path + 'm5_adjo')
@@ -78,13 +78,38 @@ all_risk_factor = pd.concat([pd.read_pickle(risk_factor_path + 'Factor_Exposure_
 all_risk_factor['T00018.SH'] = np.nan
 all_risk_factor = all_risk_factor[ST.columns]
 
+# def get_index_weight(index_name):
+#     try:
+#         index_weight = pd.read_pickle(raw_data_path + index_name + '_weight')
+#     except:
+#         sys.exit('The benchmark you have inputed is ERROR...')
+#     index_weight.index = pd.to_datetime(index_weight.index.astype(str))
+#     return index_weight
+
 def get_index_weight(index_name):
     try:
-        index_weight = pd.read_pickle(raw_data_path + index_name + '_weight')
+        if 'ret' in index_name:
+            index_weight = pd.read_pickle('/pcie/trading/signal/daily_weight/wei/' + index_name + '_weight')
+        elif index_name == 'all':
+            index_weight = C_price / C_price
+            index_weight = index_weight.div(index_weight.sum(1), axis=0)
+        elif index_name in ['zz500', 'hs300', 'zz1000','cyb','cybz','zxb','zxbz']:
+            index_weight = pd.read_pickle(raw_data_path + index_name + '_weight')
+        elif '+' in index_name:
+            index_weight = 0
+            names = index_name.split('+')
+            for i in names:
+                index_weight += pd.read_pickle(raw_data_path + i + '_weight').fillna(0.)
+        elif 'top' in index_name:
+            size_tot = pd.read_pickle(raw_data_path + 'size_tot')
+            cut = int(index_name.split('top')[1])
+            size_rank = size_tot.rank(ascending=False, axis=1)
+            index_weight = size_rank[size_rank < 1000]
     except:
+        print(index_name, 'error')
         sys.exit('The benchmark you have inputed is ERROR...')
     index_weight.index = pd.to_datetime(index_weight.index.astype(str))
-    return index_weight
+    return index_weight 
 
 def cut_res(data, cut_pos=None, cut_side='right'):
     if cut_pos is None:
@@ -129,7 +154,7 @@ class Result(object):     # 储存回测结果
         pass
 
 class Backtest(object):
-    def __init__(self, weight = None, weight_name = 'NA', result_dir='./', RoP = 0, fund = 100000000, fund_rate = 1, impact_balance = 'fixed', sell_itcpt_impact = 0, sell_slope_impact = 0, buy_itcpt_impact = 0, buy_slope_impact = 0, start = None, end = None, freq = 5, stock_num = 100, ext_num = 300, in_num = 0, max_amount_ratio = 1.0, buy_multiplier=1, sel_mom = 1, top_percent = 0.75, adjust_can_sell = False, benchmark = None, trade_ratio = None, max_ratio_per_stock = None, trade_lost_vs_twap = 10, t0_stock_dict=None, delay_minutes = 0, trade_indexes=None, isweight = False, buyST = False, component = None, comp = 'zz500', trademethod = 'vwap', plot_res = True, optimal_stock = '2', test_res = None, res_path = None, add_component = False, stamptax = 0.001, commision = 0.0003, trade_time_rate = 1, enhance_component=None, enhance_component_weight=0, enhance_cap=None, enhance_cap_weight=0,enhance_cap_weight2=0, barra_dict=None, barra_list=None, barra_list_usage='rebalance', barra_rebalance_num=None, barra_rebalance_th=0.0, barra_rebalance_lookback=20, barra_list_weight=0.0, amnt_lookback_days=1, amnt_max_ratio=None, buy_strategy='equal_sell_num', ext_num_adjust_type=None, ext_num_adjust_score='r2', ext_num_adjust_upper=0.0020, ext_num_adjust_lower=0.0010, ext_num_adjust_freq=5, ext_num_adjust_lookback=5):
+    def __init__(self, weight = None, weight_name = 'NA', result_dir='./', RoP = 0, fund = 500000000, fund_rate = 1, impact_balance = 'fixed', sell_itcpt_impact = 0, sell_slope_impact = 0, buy_itcpt_impact = 0, buy_slope_impact = 0, start = None, end = None, freq = 5, stock_num = 100, ext_num = 300, in_num = 0, max_amount_ratio = 1.0, buy_multiplier=1, sel_mom = 1, top_percent = 0.75, adjust_can_sell = True, benchmark = 'IC', trade_ratio = 1.0, max_ratio_per_stock = None, trade_lost_vs_twap = 10, t0_stock_dict=None, delay_minutes = 0, trade_indexes=None, isweight = False, buyST = False, component = None, comp = 'zz500', trademethod = 'vwap', plot_res = True, optimal_stock = '2', test_res = None, res_path = None, add_component = False, stamptax = 0.001, commision = 0.0003, trade_time_rate = 1, enhance_component=None, enhance_component_weight=0, enhance_cap=None, enhance_cap_weight=0,enhance_cap_weight2=0, barra_dict=None, barra_list=None, barra_list_usage='rebalance', barra_rebalance_num=None, barra_rebalance_th=0.0, barra_rebalance_lookback=20, barra_list_weight=0.0, amnt_lookback_days=1, amnt_max_ratio=None, buy_strategy='equal_sell_num', ext_num_adjust_type=None, ext_num_adjust_score='r2', ext_num_adjust_upper=0.0020, ext_num_adjust_lower=0.0010, ext_num_adjust_freq=5, ext_num_adjust_lookback=5, cyb_rate=1, fig_show_save='show'):
 
         assert impact_balance in ['fixed', 'dynamic_fixed', 'dynamic_growth'], 'ERROR: the variable impact_balance must be valued in ["fixed", "dynamic_fixed", "dynamic_growth"] !!!'
         if weight.index[-1].strftime('%Y-%m-%d') != end:
@@ -138,6 +163,7 @@ class Backtest(object):
         self.result_dir = result_dir
 
         self.comp= comp
+        self.cyb_rate = cyb_rate
         self.add_component = add_component
         self.optimal_stock = str(optimal_stock)
 
@@ -238,7 +264,8 @@ class Backtest(object):
         self.weight = self.weight.loc[self.start:self.end].copy()
         # index的成份股
         
-        self.index_weight = get_index_weight(self.comp).reindex(index = self.dates)
+        self.index_weight = get_index_weight(self.index_name).reindex(index = self.dates)
+        self.comp_weight = get_index_weight(self.comp).reindex(index = self.dates)
         # 可交易的非ST股
         self.nst_tradable = nst_tradable.reindex(index = self.dates).fillna(method='ffill')
         # 可交易的股票（含ST）
@@ -475,7 +502,7 @@ class Backtest(object):
             if not self.buyST: # 可选限定为非ST股
                 pool_all = pool_all[self.nst_tradable.loc[test_day, pool_all]]
             if self.component: # 可选限定为成分内
-                pool_all = pool_all[self.index_weight.loc[test_day, pool_all] > 0]
+                pool_all = pool_all[self.comp_weight.loc[test_day, pool_all] > 0]
     
             if self.add_component: # 是否为成份内选股
                 pool_all1 = pool_all[self.index_weight.loc[test_day, pool_all] > 0].copy()
@@ -523,8 +550,15 @@ class Backtest(object):
                 new_stock = add_stock # 目标持仓
     
                 if len(new_stock) > 0:
-                    after_pool = pd.Series(1.0 / len(new_stock), index = new_stock)
+                    # after_pool = pd.Series(1.0 / len(new_stock), index = new_stock)
+                    ## added by wb
+                    chg_mask = pd.Series(1, index = new_stock)
+                    idx = [i for i in new_stock if i[0]=='3']
+#                     print(test_day, len(idx))
+                    chg_mask.loc[idx] = self.cyb_rate
+                    after_pool = chg_mask / chg_mask.sum()
                     buy_pool = after_pool.copy()
+                    ## done
 
                     if self.barra_list:
                         if self.barra_list_usage == 'weight':
@@ -580,10 +614,13 @@ class Backtest(object):
             test_datetime = test_day.strftime('%Y-%m-%d') + ' ' + test_time
             if test_time == '09:30:00':
                 wei = self.weight.loc[self.last_day.strftime('%Y-%m-%d') + ' 15:00:00'].copy()
+                test_day_index = self.last_day.strftime('%Y-%m-%d') + ' 15:00:00'
             elif test_time == '13:00:00':
                 wei = self.weight.loc[test_day.strftime('%Y-%m-%d') + ' 11:30:00'].copy()
+                test_day_index = self.last_day.strftime('%Y-%m-%d') + ' 11:30:00'
             else:
                 wei = self.weight.loc[test_datetime].copy()
+                test_day_index = test_datetime
 
 #            if self.barra_list:
 #                load_risk = all_risk_factor.loc[test_day.strftime('%Y-%m-%d')]
@@ -614,7 +651,7 @@ class Backtest(object):
             if not self.buyST: # 可选限定为非ST股
                 pool_all = pool_all[self.nst_tradable.loc[test_day, pool_all]]
             if self.component: # 可选限定为成分内
-                pool_all = pool_all[self.index_weight.loc[test_day, pool_all] > 0]
+                pool_all = pool_all[self.comp_weight.loc[test_day, pool_all] > 0]
     
             if self.add_component: # 是否为成份内选股
                 pool_all1 = pool_all[self.index_weight.loc[test_day, pool_all] > 0].copy()
@@ -640,9 +677,9 @@ class Backtest(object):
                     print('  Warnning: %3d equal weight stocks within %3d stocks on %s...'%(self.ext_num - len(wei2), self.ext_num, str(self.test_day)[:10]))
                 wei = wei1.sort_values()
                 limit_stock = wei.index[0 : self.ext_num]
-                candidate_stock = list(set(wei.index[self.in_num : self.in_num + self.stock_num]) - set(zt_stock))
+                candidate_stock = list(set(wei.index[self.in_num : self.in_num + self.stock_num]) - set(zt_stock) - set(dt_stock))
                 keep_stock = list(set(fixed_stock) | set(old_dt_trad_stock) | (set(pool_old) & set(limit_stock)))
-                remove_stock = list((set(pool_old) - set(keep_stock)) & set(can_sell_pool.index))
+                remove_stock = list((set(pool_old) - set(keep_stock) - set(zt_stock)) & set(can_sell_pool.index))
                 remove_num = len(remove_stock)
                 if remove_num == 0:
                     #print(test_datetime,'remove_pool is 0')
@@ -738,6 +775,7 @@ class Backtest(object):
 
                         if len(add_stock) == 0:
                             return oldpool, can_sell_pool
+                        
                         buy_pool = pd.Series(total_ratio / len(add_stock), index=add_stock)
                     else:
                         if self.amnt_max_ratio is None:
@@ -757,7 +795,14 @@ class Backtest(object):
                                         break
                         if len(add_stock) == 0:
                             return oldpool, can_sell_pool
-                        buy_pool = pd.Series(total_ratio / len(add_stock), index=add_stock)
+                        ## added by wb
+                        chg_mask = pd.Series(1, index = add_stock)
+                        idx = [i for i in add_stock if i[0]=='3']
+#                         print(test_day, len(idx), len(add_stock) )
+                        chg_mask.loc[idx] = self.cyb_rate
+                        buy_pool = chg_mask / chg_mask.sum() * total_ratio
+                        ## done
+#                         buy_pool = pd.Series(total_ratio / len(add_stock), index=add_stock)
                         #print(test_datetime,'buy_pool sum', buy_pool.sum(), len(add_stock), add_stock)
 
                 elif self.buy_strategy == 'fill_top':
@@ -844,6 +889,9 @@ class Backtest(object):
                 #print(test_datetime,'prop_res sum', prop_res.sum(), 'oldpool', oldpool.sum())
 
                 self.sell_ratio.extend(((fund * sell_pool) / (self.amount.loc[self.test_day, sell_pool.index] * 1000 * self.trade_time_rate * self.freq / 240.0)).tolist())
+                
+                self.total_sell.loc[test_day_index] = sell_pool.reindex(self.weight.columns)
+                self.total_buy.loc[test_day_index] = buy_pool.reindex(self.weight.columns)
 
                 return prop_res, new_can_sell_pool
             else:
@@ -852,9 +900,10 @@ class Backtest(object):
 
     def calc_turnover(self, prop_before, prop_after): # 计算换手率
         if isinstance(prop_before, pd.Series) and isinstance(prop_after, pd.Series):
+            idx = set(prop_before.index) | set(prop_after.index)
             _before, _after = prop_before.copy(), prop_after.copy()
-            _before = _before.reindex(index = _after.index).fillna(0)
-            _after = _after.reindex(index = _before.index).fillna(0)
+            _before = _before.reindex(index = idx).fillna(0)
+            _after = _after.reindex(index = idx).fillna(0)
             return (_after - _before).abs().sum() / 2
         else:
             return 0
@@ -880,6 +929,10 @@ class Backtest(object):
         self.top_sell_ratio = []
         self.avg_buy_ratio = []
         self.avg_sell_ratio = []
+        self.col = self.weight.columns
+        self.prop_res_list = pd.DataFrame(columns=self.col)
+        self.total_sell = pd.DataFrame(columns=self.col)
+        self.total_buy = pd.DataFrame(columns=self.col)
 
         self.all_delay_trade_days = 0 # 所有在交易日没有成功交易的次数
         self.last_day = self.dates[0]
@@ -1004,6 +1057,7 @@ class Backtest(object):
                         self.stockpool = self.prop_res.index
                     else: # 无法正常调仓，顺延到下一交易日继续调仓
                         print(self.test_day, 'get_prop Error!')
+                    self.prop_res_list.loc[test_datetime] = (self.prop_res / self.prop_res.sum()).reindex(self.col).values
 
                     if time > '14:49:00' or i == len(self.times) - 1 or i == self.trade_indexes[len(self.trade_indexes) - 1]:
                         ret_stk = self.C_price.loc[self.test_day, self.stockpool] / self.trade_prices.loc[test_datetime, self.stockpool] # 今交到今收
@@ -1020,7 +1074,7 @@ class Backtest(object):
             if self.first_open:
                 self.net_value.loc[self.test_day] = 1.0
                 self.my_hedge_net_value.loc[self.test_day] = 1.0
-                print(self.test_day, 'MarketClose. net_val 1.0 hedge_net_val 1.0. first_open_val', round(net_val_cur,4))
+#                 print(self.test_day, 'MarketClose. net_val 1.0 hedge_net_val 1.0. first_open_val', round(net_val_cur,4))
             else:
                 self.net_value.loc[self.test_day] = net_val_cur
                 tmp_portfolio_ret = self.net_value.loc[self.test_day] / self.net_value.loc[self.last_day] - 1
@@ -1122,7 +1176,8 @@ class Backtest(object):
         try:
             self.dates = C_price.loc[self.run_start : self.run_end].index
             self.weight_list = pd.DataFrame(self.weight_list, index = self.dates).reindex(columns = C_price.columns)
-            self.weight_list.to_csv(self.result_dir + self.weight_name + '_weight.csv')       
+            self.weight_list.to_csv(self.result_dir + self.weight_name + '_weight.csv')  
+            self.prop_res_list.to_csv(self.result_dir + self.weight_name + '_prop_res.csv')
         except Exception as e:
             print(traceback.format_exc())
             self.run = False
@@ -1166,6 +1221,9 @@ class Backtest(object):
             turnover[0] = 0
 
             res = Result()
+            
+            self.total_sell.to_csv(self.result_dir + self.weight_name + '_total_sell.csv')
+            self.total_buy.to_csv(self.result_dir + self.weight_name + '_total_buy.csv')
 
             trade_stock_num = self.weight_list.count(1) - (~np.isnan(self.weight_list + self.weight_list.shift(1))).sum(1)
             res.ptf_df = pd.DataFrame({'Portfolio_ret':self.Portfolio_ret, 'Index_ret':self.Index_ret, 'Hedge_ret':self.Hedge_ret, 'Hedge_net_val':hedge_net_val, 'Drawdown':draw_down, 'Trade_stock_num':trade_stock_num, 'Turnover':turnover}, columns=['Portfolio_ret', 'Index_ret', 'Hedge_ret', 'Hedge_net_val', 'Drawdown', 'Trade_stock_num', 'Turnover'], index = self.dates)
@@ -1173,24 +1231,24 @@ class Backtest(object):
             if self.plot_res:
                 res.ptf_df[['Hedge_net_val', 'Drawdown']].plot(kind = 'line', color = 'bg', secondary_y = ['Drawdown'], figsize = (16, 6), title = 'Hedge_net_value and Drawdown')
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_Hedge_net_val.png')
+                plt.show()
                 plt.close()
                 plt.figure(figsize = (16, 6))
                 res.ptf_df['Turnover'].plot(color = 'y',title = 'Turnover')
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_Turnover.png')
+                plt.show()
                 plt.close()
                 buy_ratio_df = pd.DataFrame({'max_buy_ratio': self.max_buy_ratio, 'top_buy_ratio': self.top_buy_ratio, 'avg_buy_ratio': self.avg_buy_ratio}, columns=['max_buy_ratio', 'top_buy_ratio', 'avg_buy_ratio'], index=self.dates)
                 buy_ratio_df[['max_buy_ratio', 'top_buy_ratio', 'avg_buy_ratio']].plot(kind='line', secondary_y = ['top_buy_ratio','avg_buy_ratio'], title='buy_ratio')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_buy_ratio.png')
+                plt.show()
                 plt.close()
                 sell_ratio_df = pd.DataFrame({'max_sell_ratio': self.max_sell_ratio, 'top_sell_ratio': self.top_sell_ratio, 'avg_sell_ratio': self.avg_sell_ratio}, columns=['max_sell_ratio', 'top_sell_ratio', 'avg_sell_ratio'], index=self.dates)
                 sell_ratio_df[['max_sell_ratio', 'top_sell_ratio', 'avg_sell_ratio']].plot(kind='line', secondary_y = ['top_sell_ratio','avg_sell_ratio'], title='sell_ratio')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_sell_ratio.png')
+                plt.show()
                 plt.close()
 
             res.weight = self.weight_list
@@ -1247,15 +1305,15 @@ class Backtest(object):
             res.all_risk.to_csv(self.result_dir + self.weight_name + '_riskload.csv')
 
             if self.plot_res:
-                res.long_risk[risk_factor1].plot(title = 'Risk Load of Long', figsize = (16, 12))
+                res.long_risk[risk_factor1].plot(title = 'Risk Load of Long', figsize = (16, 9))
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_Risk_Load_of_Long.png')
-                plt.close()
-                res.hedge_risk[risk_factor1].plot(title = 'Risk Load of Hedge', figsize = (16, 12))
-                plt.grid(linestyle = 'dashdot')
                 plt.show()
+                plt.close()
+                res.hedge_risk[risk_factor1].plot(title = 'Risk Load of Hedge', figsize = (16, 9))
+                plt.grid(linestyle = 'dashdot')
                 plt.savefig(self.result_dir + self.weight_name + '_Risk_Load_of_Hedge.png')
+                plt.show()
                 plt.close()
 
             res.risk_return = res.hedge_risk * factor_return.loc[res.hedge_risk.index]
@@ -1267,12 +1325,12 @@ class Backtest(object):
             model = sm.OLS(y, x, missing = 'drop')
             ress = model.fit()
             if self.plot_res:
-                res.risk_return[risk_factor].cumsum().plot(title = 'Risk Return  (R-squared = %.4f including industry_factor)'%ress.rsquared, figsize = (16, 12))
+                res.risk_return[risk_factor].cumsum().plot(title = 'Risk Return  (R-squared = %.4f including industry_factor)'%ress.rsquared, figsize = (16, 9))
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_Risk_Return.png')
+                plt.show()
                 plt.close()
-
+            
             risk_ret = res.risk_return.sum(1)
             risk_net_val = (risk_ret + 1).cumprod()
             risk_draw_down = 1 - risk_net_val / risk_net_val.cummax()
@@ -1287,32 +1345,51 @@ class Backtest(object):
             pure_max_dd = pure_draw_down.max()
 
             res.res_df = pd.DataFrame([[ret_year, vol, down_vol, sharp_ratio, adj_sharp_ratio, sortino_ratio, Max_dd, avg_turnover, self.cost, ret_year / abs(Max_dd + 0.0001), self.benchmark, self.Hedge_ret.mean(), self.Hedge_ret.std(), pure_ret_year, pure_sharp_ratio,pure_max_dd]], index = ['Values'], columns = ['return', 'total_vol', 'down_vol', 'sharp', 'adj_sharp', 'sortino', 'Max_dd', 'turnover', 'cost', 'reward-risk', 'benchmark', 'daily_mean', 'daily_std','pure_ret','pure_sharp','pure_max_dd'])
+            res.res_df.to_pickle(self.result_dir + self.weight_name + '_res_df.pkl')
 
             
             ptf_df = pd.DataFrame({'Risk_net_val':risk_net_val, 'Risk_drawdown':risk_draw_down}, columns=['Risk_net_val','Risk_drawdown'], index=self.dates)
             if self.plot_res:
-                ptf_df.plot(kind='line', color='bg', secondary_y=['Risk_drawdown'], figsize=(16,6), title='Hedge_net_value and Drawdown of Risk')
+                ptf_df.plot(kind='line', color='bg', secondary_y=['Risk_drawdown'], figsize=(16,6), title='Hedge_net_value and Drawdown of Risk (cumprod)')
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_risk_net_val.png')
+                plt.show()
                 plt.close()
         
             ptf_df = pd.DataFrame({'Pure_net_val':pure_net_val, 'Pure_drawdown':pure_draw_down}, columns=['Pure_net_val','Pure_drawdown'], index=self.dates)
             if self.plot_res:
-                ptf_df.plot(kind='line', color='bg', secondary_y=['Pure_drawdown'], figsize=(16,6), title='Hedge_net_value and Drawdown of Pure alpha')
+                ptf_df.plot(kind='line', color='bg', secondary_y=['Pure_drawdown'], figsize=(16,6), title='Hedge_net_value and Drawdown of Pure alpha (cumprod)')
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_pure_net_val.png')
+                plt.show()
                 plt.close()
        
             ptf_df = pd.DataFrame({'Hedge_net_val':hedge_net_val,'Pure_net_val':pure_net_val, 'Risk_net_val':risk_net_val}, columns=['Hedge_net_val','Pure_net_val','Risk_net_val'], index=self.dates)
             if self.plot_res:
-                ptf_df.plot(kind='line', color='brg', figsize=(16,6), title='Hedge_net_val of Risk, Pure, Total')
+                ptf_df.plot(kind='line', color='brg', figsize=(16,6), title='Hedge_net_val of Risk, Pure, Total (cumprod)')
                 plt.grid(linestyle = 'dashdot')
-                plt.show()
                 plt.savefig(self.result_dir + self.weight_name + '_net_val_analysis.png')
+                plt.show()
                 plt.close() 
-
+                
+            risk_res = pd.DataFrame(index=risk_factor1)
+            risk_res['mean'] = hedge_risk[risk_factor1].mean()
+            risk_res['std'] = hedge_risk[risk_factor1].std()
+            risk_res['ret'] = res.risk_return.cumsum().iloc[-1].reindex(risk_factor1)
+            risk_res['stab_ret'] = risk_res['mean'] * (factor_return.loc[res.hedge_risk.index].cumsum().iloc[-1].reindex(risk_factor1))
+            risk_res['vol_ret'] = risk_res['ret'] - risk_res['stab_ret']
+            res.risk_res = risk_res
+            
+            tp = pd.DataFrame()
+            tp['Hedge_net_val'] = res.Hedge_ret.cumsum()
+            tp['Risk_net_val'] = res.risk_return.sum(1).cumsum()
+            tp['Pure_net_val'] = tp['Hedge_net_val'] - tp['Risk_net_val']
+            if self.plot_res:
+                tp.plot(kind='line', color='bgr', figsize=(16,6), title='Hedge_net_val of Risk, Pure, Total (cumsum)')
+                plt.grid(linestyle = 'dashdot')
+                plt.savefig(self.result_dir + self.weight_name + '_net_val_analysis_sum.png')
+                plt.show()
+                plt.close() 
  
             # pdb.set_trace()
             res.cost = pd.Series(self.ccost, index = self.dates)
